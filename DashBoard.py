@@ -6,25 +6,33 @@ import numpy as np
 st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide")
 
 # ---------------------------
-# Load Data (FULL OWID DATASET)
+# Load Country List (small + safe)
 # ---------------------------
 @st.cache_data
-def load_data():
-    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv.gz"
-    df = pd.read_csv(url, compression="gzip", parse_dates=["date"], low_memory=False)
+def load_country_list():
+    url = "https://covid.ourworldindata.org/v1/owid-covid-latest.json"
+    latest = pd.read_json(url)
+    return sorted(latest.columns.tolist())
+
+
+# ---------------------------
+# Load Timeseries Data (per-country API)
+# ---------------------------
+@st.cache_data
+def load_country_data(country):
+    url = f"https://covid.ourworldindata.org/v1/country/{country}.csv"
+    df = pd.read_csv(url, parse_dates=["date"])
     return df
 
-
-df = load_data()
 
 # ---------------------------
 # Sidebar Filters
 # ---------------------------
 st.sidebar.header("Filters")
 
-countries = sorted(df["location"].dropna().unique())   # "location" instead of "country"
+countries = load_country_list()
 
-default_index = countries.index("India") if "India" in countries else 0
+default_index = countries.index("IND") if "IND" in countries else 0
 selected_country = st.sidebar.selectbox("Select Country", countries, index=default_index)
 
 metric = st.sidebar.selectbox(
@@ -36,12 +44,12 @@ metric = st.sidebar.selectbox(
 )
 
 # ---------------------------
-# Country Data
+# Load Country Time-Series
 # ---------------------------
-country_data = df[df["location"] == selected_country].sort_values("date")
+country_data = load_country_data(selected_country).sort_values("date")
 
 st.title("COVID-19 Analytics Dashboard")
-st.caption("Powered by Streamlit — uses OWID COVID-19 Full Dataset")
+st.caption("Powered by Streamlit — OWID Per-Country API (Optimized for Cloud Hosting)")
 
 # ---------------------------
 # KPIs
@@ -50,18 +58,22 @@ col1, col2, col3, col4 = st.columns(4)
 
 latest = country_data.iloc[-1]
 
-# No NaN problem now
 col1.metric("Total Cases", f"{latest.get('total_cases', 0):,.0f}")
 col2.metric("Total Deaths", f"{latest.get('total_deaths', 0):,.0f}")
 
-# Fix for NaNs
+# Vaccination (avoid NaN)
 people_vax = latest.get("people_vaccinated", 0)
 if pd.isna(people_vax):
     people_vax = 0
 
 col3.metric("People Vaccinated", f"{people_vax:,.0f}")
 
-col4.metric("Total Tests", f"{latest.get('total_tests', 0):,.0f}")
+# Tests (fallback to 0)
+tests = latest.get("total_tests", 0)
+if pd.isna(tests):
+    tests = 0
+
+col4.metric("Total Tests", f"{tests:,.0f}")
 
 # ---------------------------
 # Line Chart
