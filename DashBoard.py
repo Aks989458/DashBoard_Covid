@@ -10,9 +10,10 @@ st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide")
 # ---------------------------
 @st.cache_data
 def load_data():
-    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"   # FULL dataset
-    df = pd.read_csv(url, parse_dates=["date"], low_memory=False)
+    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv.gz"
+    df = pd.read_csv(url, compression="gzip", parse_dates=["date"], low_memory=False)
     return df
+
 
 df = load_data()
 
