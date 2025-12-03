@@ -6,11 +6,11 @@ import numpy as np
 st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide")
 
 # ---------------------------
-# Load Data
+# Load Data (FULL OWID DATASET)
 # ---------------------------
 @st.cache_data
 def load_data():
-    url = "https://catalog.ourworldindata.org/garden/covid/latest/compact/compact.csv"
+    url = "https://covid.ourworldindata.org/data/owid-covid-data.csv"   # FULL dataset
     df = pd.read_csv(url, parse_dates=["date"], low_memory=False)
     return df
 
@@ -21,7 +21,7 @@ df = load_data()
 # ---------------------------
 st.sidebar.header("Filters")
 
-countries = sorted(df["country"].dropna().unique())
+countries = sorted(df["location"].dropna().unique())   # "location" instead of "country"
 
 default_index = countries.index("India") if "India" in countries else 0
 selected_country = st.sidebar.selectbox("Select Country", countries, index=default_index)
@@ -37,10 +37,10 @@ metric = st.sidebar.selectbox(
 # ---------------------------
 # Country Data
 # ---------------------------
-country_data = df[df["country"] == selected_country].sort_values("date")
+country_data = df[df["location"] == selected_country].sort_values("date")
 
 st.title("COVID-19 Analytics Dashboard")
-st.caption("Powered by Streamlit — uses OWID Compact COVID Dataset")
+st.caption("Powered by Streamlit — uses OWID COVID-19 Full Dataset")
 
 # ---------------------------
 # KPIs
@@ -49,10 +49,18 @@ col1, col2, col3, col4 = st.columns(4)
 
 latest = country_data.iloc[-1]
 
+# No NaN problem now
 col1.metric("Total Cases", f"{latest.get('total_cases', 0):,.0f}")
 col2.metric("Total Deaths", f"{latest.get('total_deaths', 0):,.0f}")
-col3.metric("People Vaccinated", f"{latest.get('people_vaccinated', 0):,.0f}")
-col4.metric("Total Tests", f"{latest.get('total_tests', 0):,}" if "total_tests" in country_data.columns else "0")
+
+# Fix for NaNs
+people_vax = latest.get("people_vaccinated", 0)
+if pd.isna(people_vax):
+    people_vax = 0
+
+col3.metric("People Vaccinated", f"{people_vax:,.0f}")
+
+col4.metric("Total Tests", f"{latest.get('total_tests', 0):,.0f}")
 
 # ---------------------------
 # Line Chart
@@ -66,8 +74,6 @@ fig = px.line(
     title=f"{metric.replace('_',' ').title()} Trend in {selected_country}",
 )
 st.plotly_chart(fig, use_container_width=True)
-
-
 
 # ---------------------------
 # Correlation Heatmap
