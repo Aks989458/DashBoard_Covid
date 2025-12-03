@@ -6,33 +6,24 @@ import numpy as np
 st.set_page_config(page_title="COVID-19 Analytics Dashboard", layout="wide")
 
 # ---------------------------
-# Load Country List (small + safe)
+# Load Data
 # ---------------------------
 @st.cache_data
-def load_country_list():
-    url = "https://covid.ourworldindata.org/v1/owid-covid-latest.json"
-    latest = pd.read_json(url)
-    return sorted(latest.columns.tolist())
-
-
-# ---------------------------
-# Load Timeseries Data (per-country API)
-# ---------------------------
-@st.cache_data
-def load_country_data(country):
-    url = f"https://covid.ourworldindata.org/v1/country/{country}.csv"
-    df = pd.read_csv(url, parse_dates=["date"])
+def load_data():
+    url = "https://catalog.ourworldindata.org/garden/covid/latest/compact/compact.csv"
+    df = pd.read_csv(url, parse_dates=["date"], low_memory=False)
     return df
 
+df = load_data()
 
 # ---------------------------
 # Sidebar Filters
 # ---------------------------
 st.sidebar.header("Filters")
 
-countries = load_country_list()
+countries = sorted(df["country"].dropna().unique())
 
-default_index = countries.index("IND") if "IND" in countries else 0
+default_index = countries.index("India") if "India" in countries else 0
 selected_country = st.sidebar.selectbox("Select Country", countries, index=default_index)
 
 metric = st.sidebar.selectbox(
@@ -44,12 +35,12 @@ metric = st.sidebar.selectbox(
 )
 
 # ---------------------------
-# Load Country Time-Series
+# Country Data
 # ---------------------------
-country_data = load_country_data(selected_country).sort_values("date")
+country_data = df[df["country"] == selected_country].sort_values("date")
 
 st.title("COVID-19 Analytics Dashboard")
-st.caption("Powered by Streamlit — OWID Per-Country API (Optimized for Cloud Hosting)")
+st.caption("Powered by Streamlit — uses OWID Compact COVID Dataset")
 
 # ---------------------------
 # KPIs
@@ -60,20 +51,8 @@ latest = country_data.iloc[-1]
 
 col1.metric("Total Cases", f"{latest.get('total_cases', 0):,.0f}")
 col2.metric("Total Deaths", f"{latest.get('total_deaths', 0):,.0f}")
-
-# Vaccination (avoid NaN)
-people_vax = latest.get("people_vaccinated", 0)
-if pd.isna(people_vax):
-    people_vax = 0
-
-col3.metric("People Vaccinated", f"{people_vax:,.0f}")
-
-# Tests (fallback to 0)
-tests = latest.get("total_tests", 0)
-if pd.isna(tests):
-    tests = 0
-
-col4.metric("Total Tests", f"{tests:,.0f}")
+col3.metric("People Vaccinated", f"{latest.get('people_vaccinated', 0):,.0f}")
+col4.metric("Total Tests", f"{latest.get('total_tests', 0):,}" if "total_tests" in country_data.columns else "0")
 
 # ---------------------------
 # Line Chart
@@ -87,6 +66,8 @@ fig = px.line(
     title=f"{metric.replace('_',' ').title()} Trend in {selected_country}",
 )
 st.plotly_chart(fig, use_container_width=True)
+
+
 
 # ---------------------------
 # Correlation Heatmap
